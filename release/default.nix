@@ -178,6 +178,7 @@ let
     pkgs = pkgNameListToHydraJobs overlayPkgNamesToTest;
     importantPackages = pkgNameListToHydraJobs importantPkgNamesToTest;
     tests = import ../tests { inherit system pkgs; nixpkgs = nixpkgs_; };
+    options = import ./generate-options.nix { inherit images pkgs; };
   };
 
   makeNetboot = config:
@@ -321,6 +322,30 @@ let
       };
     in
     {
+
+      fc-options = let
+        testlib = import ../tests/testlib.nix { inherit (pkgs) lib; };
+      in import "${nixpkgs_}/nixos/lib/eval-config.nix" {
+      inherit system;
+      modules = [
+        (import ./vm-image.nix imgArgs)
+        (import version_nix {})
+        ../nixos
+        ../nixos/roles
+        {
+          options.virtualisation.vlans = lib.mkOption { };
+          options.virtualisation.interfaces = lib.mkOption { };
+
+          imports = [
+            (testlib.fcConfig {
+              id = 1;
+              net.fe = true;
+              extraEncParameters.environment_url = "test.fcio.net";
+            })
+          ];
+        }
+      ];
+    };
 
     # iPXE netboot image
     netboot = lib.hydraJob (makeNetboot {
