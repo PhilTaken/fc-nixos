@@ -1,15 +1,17 @@
-{ config, lib, pkgs, ... }:
-
-with builtins;
-
-let
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+with builtins; let
   roles = config.flyingcircus.roles;
   mcfg = config.services.mongodb;
   fclib = config.fclib;
 
   listenAddresses =
-    fclib.network.lo.dualstack.addresses ++
-    fclib.network.srv.dualstack.addresses;
+    fclib.network.lo.dualstack.addresses
+    ++ fclib.network.srv.dualstack.addresses;
 
   localConfig = fclib.configFromFile /etc/local/mongodb/mongodb.yaml "";
 
@@ -46,19 +48,21 @@ let
   enabledRolesCount = length (lib.attrNames enabledRoles);
   majorVersion = head (lib.attrNames enabledRoles);
   extraCheckArgs = head (lib.mapAttrsToList (n: v: v.extraCheckArgs) enabledRoles);
-
 in {
-  options =
-  let
+  options = let
     mkRole = v: {
       enable = lib.mkEnableOption "Enable the Flying Circus MongoDB ${v} server role.";
       supportsContainers = fclib.mkEnableContainerSupport;
-      extraCheckArgs = with lib; mkOption {
-        type = types.str;
-        default = "-h localhost -p 27017";
-        example = "-h example00.fe.rzob.fcio.net -p 27017 -t -U admin -P /etc/local/mongodb/password.txt";
-        description = "Extra arguments to be passed to the check_mongodb script";
-      };
+      extraCheckArgs = with lib;
+        mkOption {
+          type = types.str;
+          default =
+            if (lib.versionOlder v "3.6")
+            then ""
+            else "-h localhost -p 27017";
+          example = "-h example00.fe.rzob.fcio.net -p 27017 -t -U admin -P /etc/local/mongodb/password.txt";
+          description = "Extra arguments to be passed to the check_mongodb script";
+        };
     };
   in {
     flyingcircus.roles = {
@@ -67,15 +71,13 @@ in {
   };
 
   config = lib.mkMerge [
-
     (lib.mkIf (enabledRolesCount > 0) {
-      assertions =
-        [
-          {
-            assertion = enabledRolesCount == 1;
-            message = "MongoDB roles are mutually exclusive. Only one may be enabled.";
-          }
-        ];
+      assertions = [
+        {
+          assertion = enabledRolesCount == 1;
+          message = "MongoDB roles are mutually exclusive. Only one may be enabled.";
+        }
+      ];
 
       environment.systemPackages = [
         pkgs.mongodb-tools
@@ -113,11 +115,9 @@ in {
       flyingcircus.infrastructure.preferNoneSchedulerOnSsd = true;
 
       flyingcircus.activationScripts = {
-
-        mongodb-dirs = lib.stringAfter [ "users" "groups" ] ''
+        mongodb-dirs = lib.stringAfter ["users" "groups"] ''
           install -d -o mongodb /{srv,var/log}/mongodb
         '';
-
       };
 
       flyingcircus.localConfigDirs.mongodb = {
@@ -128,13 +128,23 @@ in {
       security.sudo.extraRules = [
         # Service users may switch to the mongodb system user
         {
-          commands = [ { command = "ALL"; options = [ "NOPASSWD" ]; } ];
-          groups = [ "sudo-srv" "service" ];
+          commands = [
+            {
+              command = "ALL";
+              options = ["NOPASSWD"];
+            }
+          ];
+          groups = ["sudo-srv" "service"];
           runAs = "mongodb";
         }
         {
-          commands = [ { command = checkMongoCmd; options = [ "NOPASSWD" ]; } ];
-          users = [ "sensuclient" ];
+          commands = [
+            {
+              command = checkMongoCmd;
+              options = ["NOPASSWD"];
+            }
+          ];
+          users = ["sensuclient"];
           runAs = "mongodb";
         }
       ];
@@ -152,7 +162,6 @@ in {
       };
 
       flyingcircus.services = {
-
         sensu-client.checks = {
           mongodb = {
             notification = "MongoDB alive";
@@ -183,7 +192,6 @@ in {
             }
           ];
         };
-
       };
     })
   ];
